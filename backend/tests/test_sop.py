@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app import create_app
+from app.schemas import WorkflowDsl
 
 
 @pytest.fixture
@@ -14,6 +15,7 @@ def client():
     # Ensure env variables are mocked
     os.environ["SUPABASE_URL"] = "https://tlcrmkftdbetgzayivqm.supabase.co"
     os.environ["SUPABASE_ANON_KEY"] = "mock-key"
+    os.environ["OPENAI_API_KEY"] = "mock-key"
     with app.test_client() as client:
         yield client
 
@@ -74,15 +76,44 @@ def mock_post_side_effect(url, json=None, headers=None, **kwargs):
     return mock_res
 
 
+@patch("app.routes.sop.extract_sop_from_transcript")
 @patch("requests.post", side_effect=mock_post_side_effect)
 @patch("requests.get", side_effect=mock_get_side_effect)
-def test_generate_sop_flow(mock_get, mock_post, client, auth_headers):
+def test_generate_sop_flow(mock_get, mock_post, mock_extract, client, auth_headers):
+    # Mock LLM service response
+    mock_extract.return_value = WorkflowDsl.model_validate(
+        {
+            "version": "1.0.0",
+            "metadata": {
+                "title": "Incident Resolution SOP",
+                "description": "Generated workflow from SRE transcript.",
+                "targetEnvironment": "production",
+                "estimatedDuration": 15,
+            },
+            "variables": [
+                {
+                    "name": "TARGET_HOST",
+                    "label": "Target Host Address",
+                    "type": "string",
+                    "defaultValue": "localhost",
+                }
+            ],
+            "steps": [
+                {
+                    "id": "step-1",
+                    "type": "command",
+                    "title": "Verify service metrics",
+                    "content": "curl -s http://localhost:8080/health | grep OK",
+                    "payload": {"commandString": "curl -s http://localhost:8080/health | grep OK"},
+                }
+            ],
+        }
+    )
+
     # Request generation
     res = client.post(
         "/api/v1/sop/generate",
-        json={
-            "transcript": "Database failed repeatedly. Let us run restart." * 3
-        },
+        json={"transcript": "Database failed repeatedly. Let us run restart." * 3},
         headers=auth_headers,
     )
     assert res.status_code == 202

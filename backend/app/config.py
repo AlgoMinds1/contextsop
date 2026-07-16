@@ -8,4 +8,4 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:3000"
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
-
+    openai_api_key: str | None = None

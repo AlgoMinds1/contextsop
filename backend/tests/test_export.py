@@ -16,7 +16,6 @@ def client():
         yield client
 
 
-
 @pytest.fixture
 def auth_headers():
     return {"Authorization": "Bearer mock-token"}
@@ -85,7 +84,6 @@ def test_export_html_success(mock_get, client, auth_headers, valid_dsl):
     assert "text/html" in res.headers["Content-Type"]
     assert "<title>Database Crash Recovery | ContextSOP Runbook</title>" in res.text
     assert "postgres-db" in res.text
-
 
 
 @patch("requests.get")
