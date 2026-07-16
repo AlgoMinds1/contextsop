@@ -2,7 +2,7 @@
 
 ContextSOP turns raw, messy incident transcripts and system engineering logs into safe, structured, and interactive Standard Operating Procedures (SOPs). By parsing inputs using LLMs, it outputs a strict JSON DSL that renders step-by-step checklists, parameterized commands, and automated checks.
 
-For the complete architectural specifications and phase-by-phase implementation blueprint, refer to the [Implementation Document](sources/document.md).
+For the complete architectural specifications and phase-by-phase implementation blueprint, refer to the document.md.
 
 ---
 
@@ -53,22 +53,22 @@ The following diagram illustrates the flow from a raw log or incident transcript
 
 ### Frontend (`frontend/.env.local`)
 
-| Variable Name | Description | Example / Default |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Endpoint url for the Supabase project | `https://your-project.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public client API key for database requests | `eyJhbG...` |
-| `NEXT_PUBLIC_API_URL` | Root endpoint connection for the Flask backend | `http://localhost:8080` |
+| Variable Name                   | Description                                    | Example / Default                  |
+| ------------------------------- | ---------------------------------------------- | ---------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      | Endpoint url for the Supabase project          | `https://your-project.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public client API key for database requests    | `eyJhbG...`                        |
+| `NEXT_PUBLIC_API_URL`           | Root endpoint connection for the Flask backend | `http://localhost:8080`            |
 
 ### Backend (`backend/.env`)
 
-| Variable Name | Description | Example / Default |
-|---|---|---|
-| `FLASK_ENV` | Mode under which the web app runs | `development` / `production` |
-| `FLASK_SECRET_KEY` | Key for signing browser session objects | `unsafe-development-key` |
-| `FRONTEND_ORIGIN` | Allowed origin header for CORS checks | `http://localhost:3000` |
-| `SUPABASE_URL` | Endpoint url matching backend database auth | `https://your-project.supabase.co` |
-| `SUPABASE_ANON_KEY` | Supabase API connection key for authentication | `eyJhbG...` |
-| `OPENAI_API_KEY` | API authentication credentials for LLM completions | `sk-proj-...` |
+| Variable Name       | Description                                        | Example / Default                  |
+| ------------------- | -------------------------------------------------- | ---------------------------------- |
+| `FLASK_ENV`         | Mode under which the web app runs                  | `development` / `production`       |
+| `FLASK_SECRET_KEY`  | Key for signing browser session objects            | `unsafe-development-key`           |
+| `FRONTEND_ORIGIN`   | Allowed origin header for CORS checks              | `http://localhost:3000`            |
+| `SUPABASE_URL`      | Endpoint url matching backend database auth        | `https://your-project.supabase.co` |
+| `SUPABASE_ANON_KEY` | Supabase API connection key for authentication     | `eyJhbG...`                        |
+| `OPENAI_API_KEY`    | API authentication credentials for LLM completions | `sk-proj-...`                      |
 
 ---
 
@@ -112,6 +112,7 @@ Based on the [Implementation Document](sources/document.md), the system progress
 ## Local Setup
 
 ### 1. Frontend
+
 ```bash
 cd frontend
 npm install --legacy-peer-deps
@@ -119,6 +120,7 @@ npm run dev
 ```
 
 ### 2. Backend
+
 ```bash
 cd backend
 python3 -m venv .venv
@@ -134,6 +136,7 @@ python run.py
 Run verification checks before committing changes:
 
 ### Backend Tests & Lints
+
 ```bash
 cd backend
 .venv/bin/pytest
@@ -141,6 +144,7 @@ cd backend
 ```
 
 ### Frontend Typecheck & Lints
+
 ```bash
 cd frontend
 npm run lint
