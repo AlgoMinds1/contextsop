@@ -51,10 +51,6 @@ def register_error_handlers(app: Flask) -> None:
     def unexpected_error(error: Exception):
         app.logger.exception("Unhandled application error")
         return (
-            jsonify(
-                error={"code": "INTERNAL_ERROR", "message": "An unexpected error occurred."}
-            ),
+            jsonify(error={"code": "INTERNAL_ERROR", "message": "An unexpected error occurred."}),
             500,
         )
-
-

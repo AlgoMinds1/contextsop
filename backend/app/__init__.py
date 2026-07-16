@@ -16,6 +16,7 @@ def get_limiter_key() -> str:
         return f"user:{g.user_id}"
     return get_remote_address()
 
+
 limiter = Limiter(key_func=get_limiter_key, default_limits=["120 per minute"])
 
 
@@ -23,23 +24,22 @@ def create_app() -> Flask:
     settings = Settings()
     app = Flask(__name__)
     app.config.update(SECRET_KEY=settings.flask_secret_key, MAX_CONTENT_LENGTH=2 * 1024 * 1024)
-    
+
     # Global CORS rule to prevent redirect/error CORS failures
     CORS(app, resources={r"/*": {"origins": [settings.frontend_origin]}})
-    
+
     limiter.init_app(app)
-    
+
     app.register_blueprint(health_bp, url_prefix="/api/v1")
     app.register_blueprint(sop_bp, url_prefix="/api/v1/sop")
     app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
     app.register_blueprint(export_bp, url_prefix="/api/v1/export")
-    
+
     register_error_handlers(app)
-    
+
     if settings.flask_env == "production" and (app.debug or app.config.get("DEBUG")):
         raise ValueError(
             "Security alert: Debug mode must not be enabled in production environments."
         )
-        
-    return app
 
+    return app

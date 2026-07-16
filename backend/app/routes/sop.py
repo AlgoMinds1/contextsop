@@ -1,6 +1,5 @@
 import os
 import threading
-import time
 import uuid
 
 import requests
@@ -8,7 +7,9 @@ from flask import Blueprint, g, jsonify, request
 from pydantic import BaseModel, Field
 
 from ..auth import require_auth
+from ..config import Settings
 from ..schemas import WorkflowDsl
+from ..services.llm import extract_sop_from_transcript
 from ..services.redaction import redact_secrets
 
 sop_bp = Blueprint("sop", __name__)
@@ -27,7 +28,7 @@ class GenerateRequest(BaseModel):
 
 def run_generation(job_id: str, transcript: str, org_id: str, user_id: str, auth_header: str):
     """
-    Background worker thread to clean logs, run mock LLM context extraction,
+    Background worker thread to clean logs, run LLM context extraction,
     and save the generated runbook to Supabase or the in-memory fallback store.
     """
     with jobs_lock:
@@ -37,41 +38,13 @@ def run_generation(job_id: str, transcript: str, org_id: str, user_id: str, auth
         # 1. Redact any sensitive credentials or tokens from the logs
         safe_transcript = redact_secrets(transcript)
 
-        # 2. Simulate computationally intensive processing (sleep 2 seconds)
-        time.sleep(2)
+        # 2. Retrieve OpenAI API key and call the LLM service
+        settings = Settings()
+        api_key = settings.openai_api_key
+        if not api_key:
+            raise ValueError("OpenAI API key is missing. Please add it to your backend/.env file.")
 
-        # 3. Create mock WorkflowDsl response
-        mock_dsl = {
-            "version": "1.0.0",
-            "metadata": {
-                "title": "Incident Resolution SOP",
-                "description": (
-                    "Generated workflow from SRE transcript. Cleaned transcript length: "
-                    f"{len(safe_transcript)} chars."
-                ),
-                "targetEnvironment": "production",
-                "estimatedDuration": 15,
-            },
-            "variables": [
-                {
-                    "name": "TARGET_HOST",
-                    "label": "Target Host Address",
-                    "type": "string",
-                    "defaultValue": "localhost",
-                }
-            ],
-            "steps": [
-                {
-                    "id": "step-1",
-                    "type": "command",
-                    "title": "Verify service metrics",
-                    "content": "curl -s http://localhost:8080/health | grep OK",
-                }
-            ],
-        }
-
-        # Validate structure against Pydantic schema
-        validated_dsl = WorkflowDsl.model_validate(mock_dsl)
+        validated_dsl = extract_sop_from_transcript(safe_transcript, api_key)
 
         sop_id = str(uuid.uuid4())
         supabase_url = os.getenv("SUPABASE_URL")
@@ -162,7 +135,6 @@ def generate_sop():
         org_id=g.org_id,
         user_id=g.user_id,
     ), 202
-
 
 
 @sop_bp.get("/jobs/<job_id>")
