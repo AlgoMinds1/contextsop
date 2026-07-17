@@ -98,7 +98,7 @@ Below is the current phase-by-phase status mapped against the [Roadmap Specifica
   - Seed library of engineering templates, validation forms wizard, and custom template builder.
 - `[x]` **Phase 14: Export Engines & Interoperability**
   - High-fidelity Markdown, interactive self-contained HTML page, server-side PDF exports, and client-side JSON downloads.
-- `[ ]` **Phase 15: Performance Optimization, Polish, and Production Readiness** (Planned)
+- `[x]` **Phase 15: Performance Optimization, Polish, and Production Readiness**
   - List virtualization, asset compression, Brotli caching headers, and monitoring integration.
 
 ---

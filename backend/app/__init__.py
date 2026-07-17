@@ -5,11 +5,12 @@ from flask_limiter.util import get_remote_address
 
 from .config import Settings
 from .errors import register_error_handlers
+from .logger import setup_secure_logging
 from .routes.auth import auth_bp
+from .routes.component import component_bp
 from .routes.export import export_bp
 from .routes.health import health_bp
 from .routes.sop import sop_bp
-from .routes.component import component_bp
 
 
 def get_limiter_key() -> str:
@@ -22,6 +23,7 @@ limiter = Limiter(key_func=get_limiter_key, default_limits=["120 per minute"])
 
 
 def create_app() -> Flask:
+    setup_secure_logging()
     settings = Settings()
     app = Flask(__name__)
     app.config.update(SECRET_KEY=settings.flask_secret_key, MAX_CONTENT_LENGTH=2 * 1024 * 1024)

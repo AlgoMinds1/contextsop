@@ -40,6 +40,12 @@ export default function RunbookPage({ params }: PageProps) {
   const activeStepIndex = useRunbookStore((state) => state.activeStepIndex);
   const verificationLogs = useRunbookStore((state) => state.verificationLogs);
   const executionId = useRunbookStore((state) => state.executionId);
+  const isOffline = useRunbookStore((state) => state.isOffline);
+  const setOfflineStatus = useRunbookStore((state) => state.setOfflineStatus);
+  const queueOfflineUpdate = useRunbookStore(
+    (state) => state.queueOfflineUpdate,
+  );
+  const clearOfflineQueue = useRunbookStore((state) => state.clearOfflineQueue);
 
   const initializeRun = useRunbookStore((state) => state.initializeRun);
   const setExecutionId = useRunbookStore((state) => state.setExecutionId);
@@ -54,6 +60,48 @@ export default function RunbookPage({ params }: PageProps) {
   const resetRun = useRunbookStore((state) => state.resetRun);
 
   const { user, profile } = useAuth();
+
+  // Monitor network online/offline events
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    setOfflineStatus(!navigator.onLine);
+
+    const handleOnline = async () => {
+      setOfflineStatus(false);
+      console.log("[Network Status]: Online. Flushing offline queue...");
+
+      const queue = useRunbookStore.getState().offlineQueue;
+      if (queue.length > 0) {
+        for (const event of queue) {
+          try {
+            await updateSopExecution(
+              event.executionId,
+              event.completedSteps,
+              event.status,
+              event.variableState,
+            );
+          } catch (err) {
+            console.error("Failed to flush offline update:", err);
+          }
+        }
+        clearOfflineQueue();
+      }
+    };
+
+    const handleOffline = () => {
+      setOfflineStatus(true);
+      console.log("[Network Status]: Offline. Queuing updates...");
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [setOfflineStatus, clearOfflineQueue]);
 
   // 1. Fetch SOP detail from DB and initialize run
   useEffect(() => {
@@ -103,7 +151,7 @@ export default function RunbookPage({ params }: PageProps) {
     }
   }, [sop_id, user, profile, initializeRun, setExecutionId]);
 
-  // 1.1. Synchronize execution progress to the database
+  // 1.1. Synchronize execution progress to the database or offline queue
   useEffect(() => {
     if (!executionId || !sop) return;
 
@@ -120,22 +168,38 @@ export default function RunbookPage({ params }: PageProps) {
       currentStatus = "completed";
     }
 
-    // Debounced sync to database
+    // Debounced sync
     const timer = setTimeout(async () => {
-      try {
-        await updateSopExecution(
+      if (isOffline) {
+        queueOfflineUpdate({
           executionId,
-          completed,
-          currentStatus,
-          variablesState,
-        );
-      } catch (err) {
-        console.error("Failed to sync execution progress to DB:", err);
+          completedSteps: completed,
+          status: currentStatus,
+          variableState: variablesState,
+        });
+      } else {
+        try {
+          await updateSopExecution(
+            executionId,
+            completed,
+            currentStatus,
+            variablesState,
+          );
+        } catch (err) {
+          console.error("Failed to sync execution progress to DB:", err);
+        }
       }
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [executionId, stepsProgress, variablesState, sop]);
+  }, [
+    executionId,
+    stepsProgress,
+    variablesState,
+    sop,
+    isOffline,
+    queueOfflineUpdate,
+  ]);
 
   const handleResetAndStartNewRun = async () => {
     if (!sop || !user || !profile) return;
@@ -245,11 +309,35 @@ export default function RunbookPage({ params }: PageProps) {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-3">
-        <RefreshCw className="w-8 h-8 animate-spin text-accent-primary" />
-        <span className="text-sm font-semibold text-text-muted font-mono">
-          Loading Interactive Runbook...
-        </span>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto pb-20 items-start animate-pulse select-none">
+        {/* Left Sidebar Skeleton */}
+        <div className="lg:col-span-4 bg-box-bg/40 rounded-2xl border border-box-border/60 p-6 space-y-6">
+          <div className="h-4 bg-slate-800 rounded w-1/3"></div>
+          <div className="h-3 bg-slate-800 rounded w-5/6"></div>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <div className="h-3 bg-slate-800 rounded w-1/4"></div>
+              <div className="h-8 bg-slate-800/80 rounded w-full"></div>
+            </div>
+            <div className="space-y-2">
+              <div className="h-3 bg-slate-800 rounded w-1/3"></div>
+              <div className="h-8 bg-slate-800/80 rounded w-full"></div>
+            </div>
+          </div>
+        </div>
+        {/* Right Content Skeleton */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="bg-box-bg/40 rounded-2xl border border-box-border/60 p-6 space-y-4">
+            <div className="h-6 bg-slate-800 rounded w-2/3"></div>
+            <div className="h-4 bg-slate-800/80 rounded w-full"></div>
+            <div className="h-3 bg-slate-800/80 rounded w-5/6"></div>
+          </div>
+          <div className="space-y-4">
+            <div className="h-20 bg-box-bg/30 rounded-2xl border border-box-border/40 p-5"></div>
+            <div className="h-24 bg-box-bg/30 rounded-2xl border border-box-border/40 p-5"></div>
+            <div className="h-20 bg-box-bg/30 rounded-2xl border border-box-border/40 p-5"></div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -361,6 +449,19 @@ export default function RunbookPage({ params }: PageProps) {
 
       {/* Main Runbook Execution Panel (Right) */}
       <div className="lg:col-span-8 space-y-6">
+        {isOffline && (
+          <div className="bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl p-3.5 flex items-center gap-3 text-xs font-semibold animate-pulse select-none">
+            <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+            <div className="space-y-0.5 text-left">
+              <span>Offline Mode Active</span>
+              <p className="text-[10px] text-amber-300/80 font-normal leading-normal">
+                Network disconnected. Your runbook progress is being queued
+                locally and will automatically sync once online.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Procedure Header Card */}
         <div className="bg-box-bg rounded-2xl border border-box-border p-6 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-box-border/50 pb-4">
