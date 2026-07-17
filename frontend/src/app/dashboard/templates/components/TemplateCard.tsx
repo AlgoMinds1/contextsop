@@ -84,7 +84,7 @@ export default function TemplateCard({
       <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-accent-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
 
       {/* Top section: Category, Favorite, Menu */}
-      <div className="flex items-center justify-between gap-3 mb-4 select-none relative z-10">
+      <div className="flex items-center justify-between gap-3 mb-4 select-none relative z-20">
         <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${getCategoryBadgeStyles(template.category)}`}>
           {template.category}
         </span>

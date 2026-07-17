@@ -17,27 +17,41 @@ import TemplateGrid from "./components/TemplateGrid";
 import PreviewDrawer from "./components/PreviewDrawer";
 import EmptyState from "./components/EmptyState";
 import DeleteDialog from "./components/DeleteDialog";
-import TemplateFormModal from "./components/TemplateFormModal";
+
+// Builder & Execution Components
+import TemplateBuilder from "./components/TemplateBuilder";
+import UseTemplateModal from "./components/UseTemplateModal";
+import SopViewer from "./components/SopViewer";
 
 const LOCAL_STORAGE_KEY = "context_sop_templates";
 
 export default function TemplateLibrary() {
-  // State
+  // Navigation View State: "library" | "builder" | "viewer"
+  const [currentView, setCurrentView] = useState<"library" | "builder" | "viewer">("library");
+
+  // Core Templates State
   const [templates, setTemplates] = useState<Template[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<SortOption>("recently-used");
+  const [sortBy, setSortBy] = useState<SortOption>("recently-created");
 
-  // Dialog/Drawer States
+  // Active Execution States
+  const [activeRunTemplate, setActiveRunTemplate] = useState<Template | null>(null);
+  const [activeRunVariables, setActiveRunVariables] = useState<Record<string, string>>({});
+
+  // Dialog / Drawer States
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
   const [deleteTemplate, setDeleteTemplate] = useState<Template | null>(null);
   const [formTemplate, setFormTemplate] = useState<Template | null>(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
 
-  // Notifications
+  // Use Template Modal States
+  const [isUseModalOpen, setIsUseModalOpen] = useState(false);
+  const [useModalTemplate, setUseModalTemplate] = useState<Template | null>(null);
+
+  // Toast State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Initialize templates state from localStorage or mockData
+  // Load templates from localStorage or mockData on mount
   useEffect(() => {
     const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (saved) {
@@ -88,7 +102,8 @@ export default function TemplateLibrary() {
       timesUsed: 0,
       lastUsed: "Never",
       lastUsedTimestamp: 0,
-      createdTimestamp: Date.now()
+      createdTimestamp: Date.now(),
+      version: 1
     };
 
     saveTemplates([newTemplate, ...templates]);
@@ -106,10 +121,13 @@ export default function TemplateLibrary() {
     }
   };
 
-  const handleSaveTemplate = (formData: Omit<Template, "id" | "lastUsed" | "lastUsedTimestamp" | "createdTimestamp" | "timesUsed" | "isFavorite"> & { id?: string }) => {
+  const handleSaveTemplate = (
+    formData: Omit<Template, "id" | "lastUsed" | "lastUsedTimestamp" | "createdTimestamp" | "timesUsed" | "isFavorite"> & { id?: string }
+  ) => {
+    let updated: Template[];
     if (formData.id) {
       // Edit mode
-      const updated = templates.map((t) => {
+      updated = templates.map((t) => {
         if (t.id === formData.id) {
           return {
             ...t,
@@ -118,20 +136,16 @@ export default function TemplateLibrary() {
             category: formData.category,
             difficulty: formData.difficulty,
             estimatedTime: formData.estimatedTime,
+            variablesSpec: formData.variablesSpec,
+            stepsSpec: formData.stepsSpec,
             variables: formData.variables,
-            steps: formData.steps
+            steps: formData.steps,
+            version: formData.version
           };
         }
         return t;
       });
-      saveTemplates(updated);
-      showToast(`Updated "${formData.name}" successfully`);
-      
-      // Update preview if active
-      if (previewTemplate?.id === formData.id) {
-        const updatedPreview = updated.find((t) => t.id === formData.id);
-        if (updatedPreview) setPreviewTemplate(updatedPreview);
-      }
+      showToast(`Updated "${formData.name}" to version v${formData.version}`);
     } else {
       // Create mode
       const newTemplate: Template = {
@@ -141,25 +155,44 @@ export default function TemplateLibrary() {
         category: formData.category,
         difficulty: formData.difficulty,
         estimatedTime: formData.estimatedTime,
+        variablesSpec: formData.variablesSpec,
+        stepsSpec: formData.stepsSpec,
         variables: formData.variables,
         steps: formData.steps,
         lastUsed: "Never",
         lastUsedTimestamp: 0,
         createdTimestamp: Date.now(),
         timesUsed: 0,
-        isFavorite: false
+        isFavorite: false,
+        version: 1
       };
-      saveTemplates([newTemplate, ...templates]);
+      updated = [newTemplate, ...templates];
       showToast(`Created "${formData.name}" successfully`);
     }
 
-    setIsFormOpen(false);
+    saveTemplates(updated);
+    setCurrentView("library");
     setFormTemplate(null);
   };
 
   const handleUseTemplate = (targetTemplate: Template) => {
+    setUseModalTemplate(targetTemplate);
+    setIsUseModalOpen(true);
+  };
+
+  const handleConfirmUse = (values: Record<string, string>) => {
+    if (!useModalTemplate) return;
+    setActiveRunTemplate(useModalTemplate);
+    setActiveRunVariables(values);
+    setIsUseModalOpen(false);
+    setPreviewTemplate(null); // Close preview if open
+    setCurrentView("viewer");
+  };
+
+  const handleCompleteRun = () => {
+    if (!activeRunTemplate) return;
     const updated = templates.map((t) =>
-      t.id === targetTemplate.id
+      t.id === activeRunTemplate.id
         ? {
             ...t,
             timesUsed: t.timesUsed + 1,
@@ -169,8 +202,10 @@ export default function TemplateLibrary() {
         : t
     );
     saveTemplates(updated);
-    showToast(`Instantiated workflow for "${targetTemplate.name}"!`);
-    setPreviewTemplate(null);
+    showToast(`Successfully completed runbook execution for "${activeRunTemplate.name}"!`);
+    setCurrentView("library");
+    setActiveRunTemplate(null);
+    setActiveRunVariables({});
   };
 
   // Filter & Sort Logic
@@ -197,7 +232,6 @@ export default function TemplateLibrary() {
       case "most-used":
         return b.timesUsed - a.timesUsed;
       case "favorites":
-        // true values first
         return (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0);
       default:
         return 0;
@@ -207,13 +241,44 @@ export default function TemplateLibrary() {
   // Extract favorite templates
   const favoriteTemplates = sortedTemplates.filter((t) => t.isFavorite);
 
+  // View Switcher Router
+  if (currentView === "builder") {
+    return (
+      <TemplateBuilder
+        template={formTemplate}
+        onSave={handleSaveTemplate}
+        onCancel={() => {
+          setCurrentView("library");
+          setFormTemplate(null);
+        }}
+      />
+    );
+  }
+
+  if (currentView === "viewer" && activeRunTemplate) {
+    return (
+      <SopViewer
+        template={activeRunTemplate}
+        variables={activeRunVariables}
+        onClose={() => {
+          setCurrentView("library");
+          setActiveRunTemplate(null);
+          setActiveRunVariables({});
+        }}
+        onComplete={handleCompleteRun}
+      />
+    );
+  }
+
   return (
     <div className="space-y-8 max-w-6xl mx-auto pb-16">
       {/* Header component */}
-      <Header onNewTemplate={() => {
-        setFormTemplate(null);
-        setIsFormOpen(true);
-      }} />
+      <Header
+        onNewTemplate={() => {
+          setFormTemplate(null);
+          setCurrentView("builder");
+        }}
+      />
 
       {/* Recent / Horizontal list */}
       <RecentTemplates
@@ -243,7 +308,7 @@ export default function TemplateLibrary() {
           selectedCategories={selectedCategories}
           onCreateTemplate={() => {
             setFormTemplate(null);
-            setIsFormOpen(true);
+            setCurrentView("builder");
           }}
         />
       ) : (
@@ -261,7 +326,7 @@ export default function TemplateLibrary() {
                 onUse={handleUseTemplate}
                 onEdit={(t) => {
                   setFormTemplate(t);
-                  setIsFormOpen(true);
+                  setCurrentView("builder");
                 }}
                 onDuplicate={handleDuplicate}
                 onDelete={(t) => setDeleteTemplate(t)}
@@ -281,7 +346,7 @@ export default function TemplateLibrary() {
               onUse={handleUseTemplate}
               onEdit={(t) => {
                 setFormTemplate(t);
-                setIsFormOpen(true);
+                setCurrentView("builder");
               }}
               onDuplicate={handleDuplicate}
               onDelete={(t) => setDeleteTemplate(t)}
@@ -306,15 +371,15 @@ export default function TemplateLibrary() {
         templateName={deleteTemplate?.name || ""}
       />
 
-      {/* Edit/Create Form Modal */}
-      <TemplateFormModal
-        isOpen={isFormOpen}
+      {/* Use Template Modal Dialog */}
+      <UseTemplateModal
+        isOpen={isUseModalOpen}
         onClose={() => {
-          setIsFormOpen(false);
-          setFormTemplate(null);
+          setIsUseModalOpen(false);
+          setUseModalTemplate(null);
         }}
-        onSave={handleSaveTemplate}
-        template={formTemplate}
+        onConfirm={handleConfirmUse}
+        template={useModalTemplate}
       />
 
       {/* Animated Success Toast */}

@@ -10,9 +10,6 @@ export default function Header({ onNewTemplate }: HeaderProps) {
     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-6 border-b border-sidebar-border/40 select-none">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-accent-primary border border-emerald-500/20">
-            Phase 13
-          </span>
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sidebar-border text-text-muted border border-sidebar-border/80">
             Reusable Workflow Templates
           </span>
