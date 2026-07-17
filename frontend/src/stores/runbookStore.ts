@@ -9,6 +9,14 @@ export interface VerificationLog {
   timestamp: string;
 }
 
+export interface OfflineSyncEvent {
+  executionId: string;
+  completedSteps: string[];
+  status: "running" | "completed" | "failed" | "aborted";
+  variableState: Record<string, string>;
+  timestamp: number;
+}
+
 export interface RunbookState {
   sopId: string | null;
   executionId: string | null;
@@ -16,6 +24,10 @@ export interface RunbookState {
   variablesState: Record<string, string>;
   activeStepIndex: number;
   verificationLogs: Record<string, VerificationLog>;
+
+  // Offline Caching states
+  isOffline: boolean;
+  offlineQueue: OfflineSyncEvent[];
 
   initializeRun: (
     sopId: string,
@@ -29,6 +41,11 @@ export interface RunbookState {
   setActiveStepIndex: (index: number) => void;
   setVerificationLog: (stepId: string, log: VerificationLog) => void;
   resetRun: () => void;
+
+  // Offline syncing actions
+  setOfflineStatus: (isOffline: boolean) => void;
+  queueOfflineUpdate: (event: Omit<OfflineSyncEvent, "timestamp">) => void;
+  clearOfflineQueue: () => void;
 }
 
 export const useRunbookStore = create<RunbookState>()(
@@ -40,6 +57,9 @@ export const useRunbookStore = create<RunbookState>()(
       variablesState: {},
       activeStepIndex: 0,
       verificationLogs: {},
+
+      isOffline: false,
+      offlineQueue: [],
 
       initializeRun: (sopId, stepIds, initialVariables, executionId = null) =>
         set((state) => {
@@ -90,7 +110,23 @@ export const useRunbookStore = create<RunbookState>()(
           variablesState: {},
           activeStepIndex: 0,
           verificationLogs: {},
+          offlineQueue: [],
         })),
+
+      setOfflineStatus: (isOffline) => set(() => ({ isOffline })),
+
+      queueOfflineUpdate: (event) =>
+        set((state) => {
+          // Filter out older duplicate sync actions for this execution to prevent database spamming
+          const filtered = state.offlineQueue.filter(
+            (q) => q.executionId !== event.executionId,
+          );
+          return {
+            offlineQueue: [...filtered, { ...event, timestamp: Date.now() }],
+          };
+        }),
+
+      clearOfflineQueue: () => set(() => ({ offlineQueue: [] })),
     }),
     {
       name: "active-runbook-execution",
